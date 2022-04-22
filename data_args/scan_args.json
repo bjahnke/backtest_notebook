@@ -1,8 +1,8 @@
 {
   "load_data": {
     "ticker_wiki_url": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
-    "other_path": "other.json",
-    "base_path": "base.json",
+    "other_path": "..\\data_args\\other.json",
+    "base_path": "..\\data_args\\base.json",
     "days": 59,
     "interval": {
       "num": 15,
