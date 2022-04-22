@@ -1,0 +1,9 @@
+jupyter
+numpy
+pandas
+xlsxwriter
+matplotlib
+git+https://github.com/bjahnke/pandas_accessors.git#egg=pandas_accessors
+git+https://github.com/bjahnke/regime.git#egg=regime
+git+https://github.com/bjahnke/data_manager.git#egg=data_manager
+git+https://github.com/bjahnke/blue_bird_pms.git#egg=blue_bird_pms
