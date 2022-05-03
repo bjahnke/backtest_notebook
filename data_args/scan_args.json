@@ -21,6 +21,19 @@
     "entry_lvls": [3],
     "highest_peak_lvl": 3
   },
+  "trend_analysis_params": {
+    "distance_pct": 0.05,
+    "retrace_pct": 0.05,
+    "swing_window": 63,
+    "sw_lvl": 3,
+    "regime_threshold": 1.5
+  },
+  "signal_params": {
+    "trail_offset_pct": 0.0,
+    "r_multiplier": 1.5,
+    "entry_lvls": [3],
+    "highest_peak_lvl": 3
+  },
   "stat_params": {
     "min_periods": 50,
     "window": 256,
@@ -29,7 +42,7 @@
   },
   "scanner_settings": {
     "multiprocess": true,
-    "test_symbols": ["NWSA"],
+    "test_symbols": ["AWK"],
     "restrict_side": false
   }
 }
