@@ -3,10 +3,9 @@
     "ticker_wiki_url": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
     "other_path": "..\\data_args\\other.json",
     "base_path": "..\\data_args\\base.json",
-    "days": 59,
     "interval": {
-      "num": 15,
-      "type": "m"
+      "num": 1,
+      "type": "d"
     },
     "benchmark_id": "SPY"
   },
@@ -38,11 +37,12 @@
     "min_periods": 50,
     "window": 256,
     "percentile": 0.05,
-    "limit": 5
+    "limit": 5,
+    "round_to": -1
   },
   "scanner_settings": {
     "multiprocess": true,
-    "test_symbols": ["AWK"],
+    "test_symbols": ["ERN-USD"],
     "restrict_side": false
   }
 }

@@ -1,15 +1,7 @@
 {
   "files": {
-    "history": {
-      "15m": {
-        "SPY": "history_15m.csv"
-      }
-    },
-    "bench": {
-      "15m": {
-        "SPY": "spy_15m.csv"
-      }
-    }
+    "history": "history.csv",
+    "bench": "bench.csv"
   },
   "other_data": [
     {
