@@ -20,9 +20,12 @@ if __name__ == '__main__':
         _args = json.load(args_fp)
     load_data = _args['load_data']
 
+    _scan_data = data_manager.utils.load_scan_data(**load_data)
+
     data_manager.utils.main(
         scan_args=_args,
         strategy_simulator=src.floor_ceiling_regime.fc_scale_strategy,
         expected_exceptions=(regime.NotEnoughDataError, src.floor_ceiling_regime.NoEntriesError),
-        scan_data=load_cbpro_data(load_data['other_path'], load_data['base_path'],)
+        # scan_data=data_manager.utils.load_scan_data(load_data['other_path'], load_data['base_path'],)
+        scan_data=_scan_data
     )

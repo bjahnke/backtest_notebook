@@ -38,11 +38,11 @@
     "window": 256,
     "percentile": 0.05,
     "limit": 5,
-    "round_to": -1
+    "round_to": 2
   },
   "scanner_settings": {
     "multiprocess": true,
-    "test_symbols": ["ERN-USD"],
+    "test_symbols": ["MMM", "EIX", "NWS"],
     "restrict_side": false
   }
 }
