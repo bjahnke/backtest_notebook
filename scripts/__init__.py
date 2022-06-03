@@ -47,9 +47,12 @@ def load_cbpro_data(other_path, base_path):
 
 
 if __name__ == '__main__':
+
     with open(r'..\data_args\scan_args.json', 'r') as args_fp:
         _args = json.load(args_fp)
     load_data = _args['load_data']
+
+    # data_manager.utils.main_re_download_data(load_data['other_path'], load_data['base_path'])
 
     _scan_data = data_manager.utils.load_scan_data(**load_data)
 
