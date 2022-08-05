@@ -47,7 +47,10 @@ def load_cbpro_data(other_path, base_path):
 
 
 if __name__ == '__main__':
-
+    """
+    rebuild scan data 
+    run after updating scanner code to view results in notebook
+    """
     with open(r'..\data_args\scan_args.json', 'r') as args_fp:
         _args = json.load(args_fp)
     load_data = _args['load_data']

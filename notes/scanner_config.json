@@ -1,0 +1,22 @@
+{
+  "website": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+  "start": "2014-12-31",
+  "end": null,
+  "vlty_n": 63,
+  "dist_pct": 0.05,
+  "retrace_pct": 0.05,
+  "threshold": 1.5,
+  "dgt": 2,
+  "d_vol": 5,
+  "r_vol": 2.5,
+  "lvl": 3,
+  "bm_ticker": "^GSPC",
+  "bm_col": "SP500",
+  "ccy_col": "USD",
+  "window": 100,
+  "st": 50,
+  "lt": 200,
+  "save_ticker_df": false,
+  "save_last_row_df": false,
+  "save_regime_df": false
+}
