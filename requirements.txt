@@ -3,6 +3,7 @@ numpy
 pandas
 xlsxwriter
 matplotlib
+openpyxl
 -e git+https://github.com/bjahnke/pandas_accessors.git#egg=pandas_accessors
 -e git+https://github.com/bjahnke/regime.git#egg=regime
 -e git+https://github.com/bjahnke/data_manager.git#egg=data_manager

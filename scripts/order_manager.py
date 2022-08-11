@@ -1,10 +1,94 @@
-import multiprocessing as mp
+from __future__ import annotations
 import json
+import typing
 
 import numpy as np
 import tda_access.access as taa
 from time import perf_counter
 import pandas as pd
+from dataclasses import dataclass, field
+
+
+@dataclass
+class TransactionTables:
+    data: pd.DataFrame
+    fees: pd.DataFrame
+    transaction: pd.DataFrame
+    position: pd.DataFrame
+    path: str = field(init=False)
+
+    @classmethod
+    def read_excel(cls, path):
+        obj = cls(**pd.read_excel(path, sheet_name=None, index_col=0))
+        obj.path = path
+        return obj
+
+    @classmethod
+    def parse_df(cls, nested_table: pd.DataFrame, positions):
+        data_table = nested_table
+        data_table.orderDate = np.where(
+            pd.isna(data_table.orderDate), data_table.transactionDate, data_table.orderDate
+        )
+        data_table = data_table.sort_values(by='orderDate').reset_index(drop=True)
+        fees_table = pd.DataFrame(list(data_table['fees']))
+        transaction_table = pd.DataFrame(list(data_table['transactionItem']))
+
+        transaction_table.loc[pd.notna(transaction_table.instrument), 'symbol'] = (
+            pd.DataFrame(list(transaction_table.instrument.dropna())).symbol.values
+        )
+        transaction_table = transaction_table.drop(columns='instrument')
+
+        data_table = data_table.drop(columns=['fees', 'transactionItem'])
+
+        return cls(
+            data_table,
+            fees_table,
+            transaction_table,
+            positions
+        )
+
+    def to_excel(self, path):
+        with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
+            self.data.to_excel(excel_writer=writer, sheet_name='data')
+            self.fees.to_excel(excel_writer=writer, sheet_name='fees')
+            self.transaction.to_excel(excel_writer=writer, sheet_name='transaction')
+            self.position.to_excel(excel_writer=writer, sheet_name='positions')
+
+    def _update(self, new_tx: TransactionTables):
+        """
+
+        :param new_tx:
+        :return:
+        """
+        self.data = pd.concat([self.data, new_tx.data]).reset_index(drop=True)
+        self.fees = pd.concat([self.fees, new_tx.fees]).reset_index(drop=True)
+        self.transaction = pd.concat([self.transaction, new_tx.transaction]).reset_index(drop=True)
+
+    def update(self, nested_table: pd.DataFrame, positions: pd.DataFrame):
+        new_data = nested_table.loc[nested_table.orderDate > self.data.orderDate.iloc[-1]]
+        updated = False
+        if not new_data.empty:
+            new_tx_tables = self.__class__.parse_df(new_data, positions)
+            self._update(new_tx_tables)
+            updated = True
+
+        if not self.position.equals(positions):
+            self.position = positions
+            updated = True
+
+        if updated:
+            self.to_excel(self.path)
+
+    def get_trades(self):
+        return self.transaction.loc[
+            (self.transaction.symbol != np.nan) &
+            (self.transaction.symbol != 'MMDA1')
+        ]
+
+    def get_open_position_trades(self):
+        return self.transaction.loc[
+            self.transaction.symbol.isin(self.position.symbol)
+        ]
 
 
 def stream_app(credentials, paths, send_conn):
@@ -63,52 +147,7 @@ def get_position_table(account_info):
     return pos
 
 
-def get_transition_table(transition_info):
-    data_table = pd.DataFrame.from_dict(transition_info)
-    fees_table = pd.DataFrame(list(data_table['fees']))
-    transaction_table = pd.DataFrame(list(data_table['transactionItem']))
-
-    instrument_table = transaction_table.instrument.dropna()
-    instrument_table = pd.DataFrame(
-        list(instrument_table), index=instrument_table.index
-    )
-
-    trade_id = 'tx_id'
-
-    instrument_table = (
-        instrument_table
-        .reset_index()
-        .rename(columns={'index': trade_id})
-    )
-
-    trade_instrument_relation = instrument_table[[trade_id, 'symbol']]
-    instrument_table = instrument_table.drop(columns=[trade_id])
-    instrument_table = instrument_table.drop_duplicates(subset=['symbol'])
-
-    transaction_table = (
-        transaction_table
-        .drop(columns=['instrument'])
-        .reset_index()
-        .rename(columns={'index': trade_id})
-    )
-    data_table = data_table.drop(columns=['fees', 'transactionItem'])
-
-    return (
-        data_table,
-        fees_table,
-        transaction_table,
-        instrument_table,
-        trade_instrument_relation
-    )
-
-
-def merge_new_data(new_tables, cached_tables):
-    for i, fetched_table in enumerate(new_tables):
-        cached_table = cached_tables[i]
-        new_data = fetched_table.loc[fetched_table.transaction_id != cached_table.transaction_id]
-
-
-if __name__ == '__main__':
+def get_base_tx_table() -> typing.Tuple[pd.DataFrame, pd.DataFrame]:
     with open('..\\data_args\\credentials.json', 'r') as cred_file:
         _inputs = json.load(cred_file)
 
@@ -119,13 +158,39 @@ if __name__ == '__main__':
 
     # get/update position table
     _pos = get_position_table(_account_info)
-    _pos.to_csv('..\\data\\position_data.csv')
 
     # get transaction history
     _tx_info = td_client.get_transactions().json()
-    _tx_table = get_transition_table(_tx_info)
-    _tx_table.to_csv('..\\data\\transaction_data.csv')
+    data_table = pd.DataFrame.from_dict(_tx_info)
+    return data_table, _pos
+
+
+def main_merge():
+    local_path = '..\\data\\transaction_data_local.xlsx'
+    tx_local = TransactionTables.read_excel(local_path)
+    tx_base, positions = get_base_tx_table()
+    nt = TransactionTables.parse_df(tx_base, positions)
+    tx_local.update(tx_base, positions)
+    tx_local.to_excel(local_path)
+
+
+if __name__ == '__main__':
+    # main_merge()
+    # _tx_tables.to_excel('..\\data\\transaction_data_local.xlsx')
+    local_path = '..\\data\\transaction_data_local.xlsx'
+    tx_local = TransactionTables.read_excel(local_path)
+    trades = tx_local.get_open_position_trades()
     print('d')
+    # TODO
+    # - with given position data (open positions), look for closing orders
+    # 1.) closing order by regime change -> close entire position
+    #
+    # create order table generated from system
+    # 1.) assume new position
+    # 2.) include symbol, size, stop loss, (direction?)
+    # 3.) manually executing trade by selecting an index and an internal function
+    #       this function executes the order and stores the data in a local table
+    #       - probably need to match broker trade data with local data
 
     # TODO generate closing orders for existing positions
 
