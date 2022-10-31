@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import pathlib
 import typing as t
 
+import data_manager.utils
 import numpy as np
 import pandas as pd
+import pandas_accessors.utils
 import tda_access.access as taa
 import datetime
 import data_manager.utils as dmu
@@ -175,19 +178,40 @@ def refresh_local_transactions():
     TransactionTables.parse_df(*get_base_tx_table()).to_excel('..\\data\\transaction_data_local.xlsx')
 
 
-def main_analyze_portfolio(multiprocess: False):
+def download_stock_data(td_client, symbols, store=True):
+    """
+
+    :return:
+    """
+    ph_params = {
+        'interval': 1,
+        'interval_type': 'd',
+        'start': datetime.datetime.utcnow() - datetime.timedelta(days=365*2)
+    }
+    bench_id = 'SPY'
+    price_histories: pd.DataFrame = td_client.download_price_history(
+        symbols,
+        **ph_params
+    )
+    bench = td_client.price_history(
+        symbol=bench_id,
+        **ph_params
+    )
+    if store is True:
+        price_histories.to_excel(pathlib.Path('..') / 'data' / 'price_history.xlsx')
+    return price_histories, bench
+
+
+def main_analyze_portfolio(
+        td_client,
+        tx_tables,
+        symbols,
+        multiprocess=False,
+):
     """
     run analysis on portfolio constituents
     :return:
     """
-
-    # init client and tables
-    td_client = taa.TdBrokerClient.init_from_json('..\\data_args\\credentials.json')
-    main_merge(td_client)
-    tx_tables = TransactionTables.from_excel('..\\data\\transaction_data_local.xlsx')
-    # get price history
-    symbols = list(tx_tables.position.symbol.values)
-
     ph_params = {
         'interval': 1,
         'interval_type': 'd',
@@ -231,7 +255,28 @@ def main_analyze_portfolio(multiprocess: False):
             strategy_simulator=src.floor_ceiling_regime.fc_scale_strategy_live,
             expected_exceptions=expected_exceptions,
         )
-    return res, tx_tables
+    return res, tx_tables, price_histories, bench
+
+
+def get_stop_level(data: src.floor_ceiling_regime.FcStrategyTables) -> t.Tuple[pd.Series, float]:
+    """
+    get the stop level for a new entry
+    :return:
+    """
+    level = 2
+
+    entry_price = data.enhanced_price_data.close.iloc[-1]
+    rg = data.regime_table.rg.iloc[-1]
+    valid_peaks = data.peak_table.loc[
+        (data.peak_table.lvl == level) &
+        (data.peak_table['type'] == rg) &
+        (((entry_price - data.peak_table.st_px) * rg) > 0)
+    ]
+    stop_level = None
+    if not valid_peaks.empty:
+
+        stop_level = valid_peaks.iloc[-1]
+    return stop_level, entry_price
 
 
 def check_trend_congruency(
@@ -260,10 +305,80 @@ def check_trend_congruency(
     return res
 
 
+def main(td_client, sub_sectors=None, multiprocess=True,):
+    # init client and tables
+    account_info = td_client.account_info()
+    main_merge(td_client)
+    tx_tables = TransactionTables.from_excel('..\\data\\transaction_data_local.xlsx')
+    # get price history
+    symbols = list(tx_tables.position.symbol.values)
+
+    # scan_res, tx_tables = main_analyze_portfolio(td_client, tx_tables, multiprocess)
+    # close_pos = check_trend_congruency(_tx_tables.position, _scan_res)
+
+    # get symbols
+    ticks, smp_data = dmu.get_smp_data()
+    if sub_sectors is not None:
+        ticks = smp_data.loc[smp_data['GICS Sub-Industry'].isin(sub_sectors), 'Symbol'].values
+    scan_res, tx_tables, price_histories, bench = main_analyze_portfolio(td_client, tx_tables, ticks, multiprocess=True)
+    order_table = []
+    for symbol, data in scan_res.items():
+        if data is None:
+            continue
+        stop_level, entry_price = get_stop_level(data)
+        if stop_level is not None:
+            order_table.append({'symbol': symbol, 'stop_px': stop_level.st_px, 'en_px': entry_price})
+
+    order_table = pd.DataFrame.from_dict(order_table)
+    order_table['r_pct'] = (
+            (order_table.en_px - order_table.stop_px) / order_table.en_px
+    )
+    order_table['target'] = (
+            order_table.en_px + (order_table.en_px * order_table.r_pct * 1.5)
+    )
+    order_table['shares'] = pandas_accessors.utils.eqty_risk_shares(
+        px=order_table.en_px,
+        r_pct=order_table.r_pct,
+        eqty=account_info.equity,
+        risk=-0.0075,
+    ) * -1
+
+    en_px_abs = []
+    for ix, data in order_table.iterrows():
+        ohcl = price_histories[data.symbol]
+        en_px_abs.append(
+            {'symbol': data.symbol, 'en_px_abs': ohcl.close.iloc[-1]}
+        )
+    order_table = order_table.merge(pd.DataFrame.from_dict(en_px_abs), on='symbol')
+    order_table = order_table.merge(
+        smp_data[['Symbol', 'GICS Sub-Industry']].rename(columns={'Symbol': 'symbol'}), on='symbol'
+    )
+
+    order_table['nominal_size'] = order_table.en_px_abs * order_table.shares
+    order_table.nominal_size = np.where(
+        abs(order_table.nominal_size) > account_info.equity, account_info.equity, order_table.nominal_size
+    )
+    order_table['clamped_shares'] = pandas_accessors.utils.nominal_size_to_shares(
+        order_table.nominal_size, order_table.en_px
+    )
+    order_table.to_excel(pathlib.Path('..') / 'data' / 'order_table.xlsx')
+    print('d')
+    return scan_res, tx_tables, price_histories, bench
+
+
+def open_positions():
+    """
+    generate open position table
+    :return:
+    """
+
+
 if __name__ == '__main__':
     # refresh_local_transactions()
     # main_merge()
     # _tx_tables.to_excel('..\\data\\transaction_data_local.xlsx')
+    p = pathlib.Path('..') / 'data' / 'order_table.xlsx'
+    main(sub_sectors=['Trucking', 'Railroads'])
     _scan_res, _tx_tables = main_analyze_portfolio(multiprocess=False)
     _close_pos = check_trend_congruency(_tx_tables.position, _scan_res)
 
