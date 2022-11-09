@@ -44,5 +44,17 @@
     "multiprocess": true,
     "test_symbols": ["V", "ROST", "NWS"],
     "restrict_side": false
+  },
+  "stream_settings": {
+    "live_quote_path": "C:\\Users\\bjahn\\Documents\\access\\outputs",
+    "price_history_path": "C:\\Users\\bjahn\\Documents\\access\\outputs\\history.csv",
+    "default_price_query": {
+      "interval": 1,
+      "interval_type": "d"
+    }
+  },
+  "local_position_path": "..\\data\\local_position_data.xlsx",
+  "broker_credential_paths": {
+    "td" : "..\\data_args\\credentials.json"
   }
 }
