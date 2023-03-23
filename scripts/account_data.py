@@ -203,7 +203,7 @@ def download_stock_data(td_client, symbols, store=True):
 
 
 def main_analyze_portfolio(
-        td_client,
+        td_client: taa.TdBrokerClient,
         tx_tables,
         symbols,
         multiprocess=False,
@@ -305,7 +305,7 @@ def check_trend_congruency(
     return res
 
 
-def main(td_client, sub_sectors=None, multiprocess=True,):
+def main(td_client: taa.TdBrokerClient, sub_sectors=None, multiprocess=True,):
     # init client and tables
     account_info = td_client.account_info()
     main_merge(td_client)
