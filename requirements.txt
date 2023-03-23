@@ -4,9 +4,7 @@ pandas
 xlsxwriter
 matplotlib
 openpyxl
--e git+https://github.com/bjahnke/regime.git#egg=regime
 -e git+https://github.com/bjahnke/data_manager.git#egg=data_manager
 -e git+https://github.com/bjahnke/blue_bird_pms.git#egg=blue_bird_pms
 -e git+https://github.com/bjahnke/tda_access.git#egg=tda_access
 -e git+https://github.com/bjahnke/cbpro_access.git#egg=cbpro_access
--e git+https://github.com/bjahnke/abstract_broker.git#egg=abstract_broker
