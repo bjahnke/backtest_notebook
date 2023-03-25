@@ -79,7 +79,7 @@ class TransactionTables(PdStorageHandler):
 
     @classmethod
     def parse_df(cls, nested_table: pd.DataFrame, positions):
-        data_table = nested_table
+        data_table = nested_table.copy()
         data_table.orderDate = np.where(
             pd.isna(data_table.orderDate), data_table.transactionDate, data_table.orderDate
         )
@@ -305,21 +305,40 @@ def check_trend_congruency(
     return res
 
 
-def main(td_client: taa.TdBrokerClient, sub_sectors=None, multiprocess=True,):
+def main(td_client: taa.TdBrokerClient, sub_sectors=None, symbols: t.Union[None, t.List[str]] = None):
+    """
+
+    :param td_client:
+    :param sub_sectors: add symbols by sub-sector, overrides smp symbol lookup
+    :param symbols: add additional symbols to search list, extends smp lookup/subsector lookup
+    :return:
+    """
     # init client and tables
     account_info = td_client.account_info()
     main_merge(td_client)
     tx_tables = TransactionTables.from_excel('..\\data\\transaction_data_local.xlsx')
     # get price history
-    symbols = list(tx_tables.position.symbol.values)
+    extend_symbols = [list(tx_tables.position.symbol.values)]
+
 
     # scan_res, tx_tables = main_analyze_portfolio(td_client, tx_tables, multiprocess)
     # close_pos = check_trend_congruency(_tx_tables.position, _scan_res)
 
     # get symbols
     ticks, smp_data = dmu.get_smp_data()
+
+    # overwrite ticks if sub-sectors given
     if sub_sectors is not None:
         ticks = smp_data.loc[smp_data['GICS Sub-Industry'].isin(sub_sectors), 'Symbol'].values
+    if symbols is not None:
+        extend_symbols.append(symbols)
+
+    ticks: t.List[str] = list(ticks)
+    # add watch symbols and open position symbols to list
+    [ticks.extend(s) for s in extend_symbols]
+    ticks = list(set(ticks))
+    ticks.sort()
+
     scan_res, tx_tables, price_histories, bench = main_analyze_portfolio(td_client, tx_tables, ticks, multiprocess=True)
     order_table = []
     for symbol, data in scan_res.items():
