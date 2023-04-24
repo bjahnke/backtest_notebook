@@ -8,9 +8,18 @@ import json
 import pickle
 import data_manager.utils as sbtu
 
+other_json = r'..\data_args\other.json'
+base_json = r'..\data_args\base.json'
+
+def re_download_stock_data():
+    sbtu.main_re_download_data(other_json, base_json)
 
 def load_data_package():
-    _data_loader = sbtu.DataLoader.init_from_paths(r'..\data_args\other.json', r'..\data_args\base.json')
+    """
+    load regime analysis result data from paths set in json files
+    :return:
+    """
+    _data_loader = sbtu.DataLoader.init_from_paths(other_json, base_json)
     _strategy_path = _data_loader.file_path('strategy_lookup.pkl')
     with open(_strategy_path, 'rb') as f:
         _strategy_lookup = pickle.load(f)
@@ -51,6 +60,7 @@ if __name__ == '__main__':
     rebuild scan data 
     run after updating scanner code to view results in notebook
     """
+    re_download_stock_data()
     with open(r'..\data_args\scan_args.json', 'r') as args_fp:
         _args = json.load(args_fp)
     load_data = _args['load_data']
