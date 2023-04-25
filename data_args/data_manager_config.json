@@ -1,0 +1,15 @@
+{
+  "base": "C:\\Users\\bjahn\\OneDrive\\algo_data\\history\\sp500_1d_6_3",
+  "data_config": {
+    "files": {
+      "history": "history.csv",
+      "bench": "bench.csv"
+    },
+    "other_data": [
+      {
+        "interval": "15m",
+        "bench": "SPY"
+      }
+    ]
+  }
+}

@@ -1,25 +1,21 @@
 import data_manager.utils
-import data_manager.scanner as scanner
 import src.floor_ceiling_regime
 import regime
-import yfinance
 import pandas as pd
 import json
 import pickle
 import data_manager.utils as sbtu
-
-other_json = r'..\data_args\other.json'
-base_json = r'..\data_args\base.json'
+import env
 
 def re_download_stock_data():
-    sbtu.main_re_download_data(other_json, base_json)
+    sbtu.main_re_download_data(env.data_manager_config)
 
 def load_data_package():
     """
     load regime analysis result data from paths set in json files
     :return:
     """
-    _data_loader = sbtu.DataLoader.init_from_paths(other_json, base_json)
+    _data_loader = sbtu.DataLoader.init_with_config(env.data_manager_config)
     _strategy_path = _data_loader.file_path('strategy_lookup.pkl')
     with open(_strategy_path, 'rb') as f:
         _strategy_lookup = pickle.load(f)

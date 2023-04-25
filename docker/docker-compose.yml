@@ -1,0 +1,11 @@
+services:
+  database:
+  # database contianing historical price and analysis
+    image: "none"
+  update-historical-prices:
+    # downloads price data from yfinance, pushes to db, send message to trigger update-price-analysis
+    image: "todo"
+  update-price-analysis:
+    # runs regime analysis on historical price data, pushes result to price analysis db
+    image: "todo"
+

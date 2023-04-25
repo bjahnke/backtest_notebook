@@ -1,3 +1,6 @@
+"""
+loads configuration data to environment
+"""
 import json
 import pathlib
 import typing
@@ -17,3 +20,4 @@ other = load_config(_env_path / 'other.json')
 scan_args = load_config(_env_path / 'scan_args.json')
 stream_settings = scan_args['stream_settings']
 local_position_path = scan_args['local_position_path']
+data_manager_config = load_config(_env_path / 'data_manager_config.json')
