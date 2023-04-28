@@ -13,6 +13,7 @@ setup(
         'numpy',
         'pandas',
         'openpyxl',
+        'python-dotenv',
         'data_manager @ git+https://github.com/bjahnke/data_manager.git#egg=data_manager',
         'pandas_accessors @ git+https://github.com/bjahnke/pandas_accessors.git#egg=pandas_accessors',
         'regime @ git+https://github.com/bjahnke/regime.git#egg=regime',

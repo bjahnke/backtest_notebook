@@ -2,12 +2,9 @@ version: "3.8"
 
 services:
   db:
-    build: ./db/
-    image: my_pg_image
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: your_password
-      POSTGRES_DB: postgres
+    image: historical_prices_db
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
