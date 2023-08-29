@@ -7,6 +7,7 @@ import typing
 import os
 from dotenv import load_dotenv
 import scripts.mytypes as mytypes
+from sqlalchemy import create_engine
 
 
 def load_config(path: typing.Union[pathlib.Path, str]):
@@ -40,6 +41,12 @@ HISTORICAL_PRICES_DB = 'historical_prices'
 class HistoricalPrices:
     stock_data='stock_data'
     timestamp_data='timestamp_data'
+
+class ConnectionEngines:
+    class HistoricalPrices:
+        NEON=create_engine(
+            os.environ.get('NEON_DB_CONSTR')
+        )
 
 POSTGRES_CONNECTION_SETTINGS = mytypes.ConnectionSettings(
     drivername=DB_DRIVER_NAME,

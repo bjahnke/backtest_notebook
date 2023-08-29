@@ -1,10 +1,17 @@
-jupyter
+auto_mix_prep
+matplotlib
 numpy
 pandas
-xlsxwriter
-matplotlib
-openpyxl
--e git+https://github.com/bjahnke/data_manager.git#egg=data_manager
--e git+https://github.com/bjahnke/blue_bird_pms.git#egg=blue_bird_pms
--e git+https://github.com/bjahnke/tda_access.git#egg=tda_access
--e git+https://github.com/bjahnke/cbpro_access.git#egg=cbpro_access
+pydantic
+python-dotenv
+schedule
+scipy
+setuptools
+SQLAlchemy
+yfinance
+abstract_broker.egg==info
+cbpro_access.egg==info
+data_manager.egg==info
+pandas_accessors==0.0.0.6
+regime.egg==info
+tda_access.egg==info

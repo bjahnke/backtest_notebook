@@ -267,6 +267,7 @@ def get_stop_level(data: src.floor_ceiling_regime.FcStrategyTables) -> t.Tuple[p
 
     entry_price = data.enhanced_price_data.close.iloc[-1]
     rg = data.regime_table.rg.iloc[-1]
+
     valid_peaks = data.peak_table.loc[
         (data.peak_table.lvl == level) &
         (data.peak_table['type'] == rg) &
@@ -277,6 +278,18 @@ def get_stop_level(data: src.floor_ceiling_regime.FcStrategyTables) -> t.Tuple[p
 
         stop_level = valid_peaks.iloc[-1]
     return stop_level, entry_price
+
+
+def get_stop_level(peak_table, entry_px: float, rg: int, entry_lvl: int = 2):
+    valid_peaks = peak_table.loc[
+        (peak_table.lvl == entry_lvl) &
+        (peak_table['type'] == rg) &
+        (((entry_px - peak_table.st_px) * rg) > 0)
+    ]
+    stop_level = None
+    if not valid_peaks.empty:
+        stop_level = valid_peaks.iloc[-1]
+    return stop_level
 
 
 def check_trend_congruency(
@@ -320,11 +333,8 @@ def main(td_client: taa.TdBrokerClient, sub_sectors=None, symbols: t.Union[None,
     # get price history
     extend_symbols = [list(tx_tables.position.symbol.values)]
 
-
-    # scan_res, tx_tables = main_analyze_portfolio(td_client, tx_tables, multiprocess)
-    # close_pos = check_trend_congruency(_tx_tables.position, _scan_res)
-
-    # get symbols
+    # inputs
+    equity = account_info.equity
     ticks, smp_data = dmu.get_smp_data()
 
     # overwrite ticks if sub-sectors given
@@ -358,7 +368,7 @@ def main(td_client: taa.TdBrokerClient, sub_sectors=None, symbols: t.Union[None,
     order_table['shares'] = pandas_accessors.utils.eqty_risk_shares(
         px=order_table.en_px,
         r_pct=order_table.r_pct,
-        eqty=account_info.equity,
+        eqty=equity,
         risk=-0.0075,
     ) * -1
 

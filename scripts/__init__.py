@@ -1,46 +1,37 @@
+"""
+Describe what this module does here:
+    - load price data from db
+    - scan for regimes
+    - save results to db
+"""
 import data_manager.utils
+import numpy as np
 import src.floor_ceiling_regime
 import regime
 import pandas as pd
-import json
-import pickle
-import data_manager.utils as sbtu
-import env
+import scripts.env as env
+from sqlalchemy import create_engine
+import multiprocessing as mp
+import typing as t
 
-def re_download_stock_data():
-    sbtu.main_re_download_data(env.data_manager_config)
 
-def load_data_package():
-    """
-    load regime analysis result data from paths set in json files
-    :return:
-    """
-    _data_loader = sbtu.DataLoader.init_with_config(env.data_manager_config)
-    _strategy_path = _data_loader.file_path('strategy_lookup.pkl')
-    with open(_strategy_path, 'rb') as f:
-        _strategy_lookup = pickle.load(f)
+def regime_ranges(df, rg_col: str):
+    start_col = "start"
+    end_col = "end"
+    loop_params = [(start_col, df[rg_col].shift(1)), (end_col, df[rg_col].shift(-1))]
+    boundaries = {}
+    for name, shift in loop_params:
+        rg_boundary = df[rg_col].loc[
+            ((df[rg_col] == -1) & (pd.isna(shift) | (shift != -1)))
+            | ((df[rg_col] == 1) & ((pd.isna(shift)) | (shift != 1)))
+        ]
+        rg_df = pd.DataFrame(data={rg_col: rg_boundary})
+        rg_df.index.name = name
+        rg_df = rg_df.reset_index()
+        boundaries[name] = rg_df
 
-    _entry_path = _data_loader.file_path('entry_table.pkl')
-    with open(_entry_path, 'rb') as f:
-        _entry_table = pickle.load(f)
-
-    _peak_path = _data_loader.file_path('peak_table.pkl')
-    with open(_peak_path, 'rb') as f:
-        _peak_table = pickle.load(f)
-
-    _bench_str = 'SPY'
-    _interval = '15m'
-    _price_data = pd.read_csv(_data_loader.history_path(), index_col=0, header=[0, 1]).astype('float64')
-    _bench = pd.read_csv(_data_loader.bench_path(), index_col=0).astype('float64')
-    _strategy_overview = pd.read_csv(_data_loader.file_path('stat_overview.csv'))
-    return (
-        _price_data,
-        _bench,
-        _strategy_overview,
-        _peak_table,
-        _entry_table,
-        _strategy_lookup
-    )
+    boundaries[start_col][end_col] = boundaries[end_col][end_col]
+    return boundaries[start_col][[start_col, end_col, rg_col]]
 
 
 def load_cbpro_data(other_path, base_path):
@@ -51,24 +42,253 @@ def load_cbpro_data(other_path, base_path):
     return ticks, data_manager.utils.PriceGlob(price_data), None, None, data_loader
 
 
+def new_regime_scanner(symbols, conn_str, sma_kwargs, breakout_kwargs, turtle_kwargs):
+    """
+    load price data from db, scan for regimes, save results to db
+    :return:
+    """
+    # INPUTS START
+
+
+    # INPUTS END
+    errors = []
+    engine = create_engine(conn_str)
+    peak_tables = []
+    regime_tables = []
+    enhanced_price_data_tables = []
+
+    for i, symbol in enumerate(symbols):
+        data = pd.read_sql(f''
+                           f'SELECT * ' 
+                           f'FROM stock_data '
+                           f'WHERE symbol = \'{symbol}\' '
+                           f'order by stock_data.bar_number asc', engine)
+        if data.empty:
+            print(f'No data for {symbol}')
+            continue
+        # print symbol and timestamp to track progress
+        print(f'{i}.) {symbol} {pd.Timestamp.now()}')
+        price_data = data.loc[data.symbol == symbol]
+
+        rel_tables, rel_regimes_table, rel_error = calculate_trend_data(symbol, price_data, is_relative=True, sma_kwargs=sma_kwargs, breakout_kwargs=breakout_kwargs, turtle_kwargs=turtle_kwargs)
+        abs_tables, abs_regimes_table, abs_error = calculate_trend_data(symbol, price_data, is_relative=False, sma_kwargs=sma_kwargs, breakout_kwargs=breakout_kwargs, turtle_kwargs=turtle_kwargs)
+
+        if rel_error:
+            errors.append(rel_error)
+        if abs_error:
+            errors.append(abs_error)
+
+        peak_tables.extend([rel_tables.peak_table, abs_tables.peak_table])
+        regime_tables.extend([
+            rel_tables.regime_table,
+            abs_tables.regime_table,
+            rel_regimes_table,
+            abs_regimes_table
+        ])
+        enhanced_price_data_tables.extend([rel_tables.enhanced_price_data, abs_tables.enhanced_price_data])
+
+    return pd.concat(peak_tables).reset_index(drop=True), pd.concat(regime_tables).reset_index(drop=True), pd.concat(enhanced_price_data_tables).reset_index(drop=True), errors
+
+
+def calculate_trend_data(
+        symbol: str, price_data: pd.DataFrame, is_relative: bool, sma_kwargs, breakout_kwargs, turtle_kwargs
+) -> t.Tuple[
+        src.floor_ceiling_regime.FcStrategyTables,
+        pd.DataFrame,
+        t.Union[t.Tuple[str, t.Type[Exception]], None]
+    ]:
+    """
+    Helper function to reuse the trend calculation run process for relative and absolute data
+    :param symbol:
+    :param price_data:
+    :param is_relative:
+    :param sma_kwargs:
+    :param breakout_kwargs:
+    :param turtle_kwargs:
+    :return:
+    """
+    price_data = price_data.loc[price_data.is_relative == is_relative].reset_index(drop=True)
+    error = None
+    regimes_table = pd.DataFrame()
+    try:
+        data_tables = src.floor_ceiling_regime.fc_scale_strategy_live(price_data=price_data, abs_price_data=pd.DataFrame())
+    except (regime.NotEnoughDataError, src.floor_ceiling_regime.NoEntriesError, KeyError) as e:
+        data_tables = src.floor_ceiling_regime.FcStrategyTables(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+        error = (symbol, type(e))
+    else:
+        data_tables = format_tables(data_tables, symbol, is_relative=is_relative)
+        regimes_table = init_trend_table(data_tables.enhanced_price_data, sma_kwargs, breakout_kwargs, turtle_kwargs)
+
+    return data_tables, regimes_table, error
+
+
+def turtle_trader(df, _h, _l, slow, fast):
+    """
+    #### turtle_trader(df, _h, _l, slow, fast) ####
+    _slow: Long/Short direction
+    _fast: trailing stop loss
+    """
+    _slow = regime_breakout(df, _h, _l, window=slow)
+    _fast = regime_breakout(df, _h, _l, window=fast)
+    turtle = pd.Series(index=df.index,
+                       data=np.where(_slow == 1, np.where(_fast == 1, 1, 0),
+                                     np.where(_slow == -1, np.where(_fast == -1, -1, 0), 0)))
+    return turtle
+
+
+def regime_sma(df, _c, st, lt):
+    """
+    #### regime_sma(df,_c,st,lt) ####
+    bull +1: sma_st >= sma_lt , bear -1: sma_st <= sma_lt
+    """
+    sma_lt = df[_c].rolling(lt).mean()
+    sma_st = df[_c].rolling(st).mean()
+    rg_sma = np.sign(sma_st - sma_lt)
+    return rg_sma
+
+
+def regime_breakout(df, _h, _l, window):
+    """
+    #### regime_breakout(df,_h,_l,window) ####
+    :param df:
+    :param _h:
+    :param _l:
+    :param window:
+    :return:
+    """
+
+    hl = np.where(df[_h] == df[_h].rolling(window).max(), 1,
+                  np.where(df[_l] == df[_l].rolling(window).min(), -1, np.nan))
+    roll_hl = pd.Series(index=df.index, data=hl).fillna(method='ffill')
+    return roll_hl
+
+
+def init_trend_table(price_data, sma_kwargs, breakout_kwargs, turtle_kwargs):
+    """
+    #### init_trend_table(price_data, sma_kwargs, breakout_kwargs, turtle_kwargs) ####
+    initialize trend table with sma, breakout, turtle
+    :param price_data:
+    :param sma_kwargs:
+    :param breakout_kwargs:
+    :param turtle_kwargs:
+    :return:
+    """
+    _c = 'close'
+    _h = 'high'
+    _l = 'low'
+    # 'sma' + str(_c)[:1] + str(sma_kwargs['st']) + str(sma_kwargs['lt'])
+    data = price_data.copy()
+    data['rg'] = regime_sma(price_data, _c, sma_kwargs['st'], sma_kwargs['lt'])
+    sma_ranges = regime_ranges(data, 'rg')
+    sma_ranges['type'] = 'sma'
+    # + str(_h)[:1] + str(_l)[:1] + str(breakout_kwargs['slow'])
+    data['rg'] = regime_breakout(price_data, _h, _l, breakout_kwargs['window'])
+    bo_ranges = regime_ranges(data, 'rg')
+    bo_ranges['type'] = 'bo'
+    #  + str(_h)[:1] + str(turtle_kwargs['fast']) + str(_l)[:1] + str(breakout_kwargs['slow'])
+    data['rg'] = turtle_trader(price_data, _h, _l, breakout_kwargs['slow'], turtle_kwargs['fast'])
+    tt_ranges = regime_ranges(data, 'rg')
+    tt_ranges['type'] = 'tt'
+    # create dataframe with sma, tt, bo as columns
+    trend_table = pd.concat([sma_ranges, bo_ranges, tt_ranges])
+    trend_table['symbol'] = price_data['symbol'].iloc[0]
+    trend_table['is_relative'] = price_data['is_relative'].iloc[0]
+    return trend_table
+
+
+def regime_scanner_mp(args):
+    return new_regime_scanner(*args)
+
+
+def format_tables(tables: src.floor_ceiling_regime.FcStrategyTables, symbol, is_relative) -> src.floor_ceiling_regime.FcStrategyTables:
+    tables.peak_table['symbol'] = symbol
+    tables.peak_table['is_relative'] = is_relative
+    tables.enhanced_price_data['symbol'] = symbol
+    tables.enhanced_price_data['is_relative'] = is_relative
+    tables.regime_table['symbol'] = symbol
+    tables.regime_table['is_relative'] = is_relative
+    tables.regime_table['type'] = 'fc'
+    return tables
+
+
+def split_list(alist, wanted_parts=1):
+    length = len(alist)
+    return [
+        alist[i * length // wanted_parts: (i + 1) * length // wanted_parts]
+        for i in range(wanted_parts)
+    ]
+
+
+def init_multiprocess(analysis_function, symbols: t.List[str], *args):
+    """
+    run analysis function in parallel
+    :param analysis_function:
+    :param symbols:
+    :param args:
+    :return:
+    """
+    # set up multiprocessing with pool
+    with mp.Pool(None) as p:
+        # run analysis for each symbol
+        results = p.map(
+            analysis_function,
+            [(symbol,) + args for symbol in split_list(symbols, mp.cpu_count() - 1)]
+        )
+    # flatten results
+    return results
+
+
+def main(multiprocess: bool = False):
+    """
+    load price data from db, scan for regimes, save results to db
+    :param multiprocess:
+    :return:
+    """
+    trend_args = (
+        {  # rg sma args
+            'st': 50,
+            'lt': 200
+        },
+        {  # rg breakout args
+            'slow': 200,
+            'window': 100
+        },
+        {  # rg turtle args
+            'fast': 50
+        },
+    )
+    # get symbols from db
+    connection_string = "postgresql://bjahnke71:8mwXTCZsA6tn@ep-spring-tooth-474112-pooler.us-east-2.aws.neon.tech/historical-stock-data"
+    engine = create_engine(connection_string, echo=True)
+    symbols = pd.read_sql('SELECT symbol FROM stock_data', engine)
+    # engine.execute('DROP TABLE IF EXISTS peak')
+    # engine.execute('DROP TABLE IF EXISTS enhanced_price')
+    # engine.execute('DROP TABLE IF EXISTS regime')
+    # data.symbol to list of unique symbols
+    symbols = symbols.symbol.unique().tolist()
+    if multiprocess:
+        results = init_multiprocess(regime_scanner_mp, symbols, connection_string, *trend_args)
+        peak_list = []
+        regime_list = []
+        enhanced_price_list = []
+        for peak_table, regime_table, enhanced_price_data_table, error in results:
+            peak_list += [peak_table]
+            regime_list += [regime_table]
+            enhanced_price_list += [enhanced_price_data_table]
+
+        pd.concat(peak_list).reset_index(drop=True).to_sql('peak', engine, if_exists='replace', index=False)
+        pd.concat(regime_list).reset_index(drop=True).to_sql('regime', engine, if_exists='replace', index=False)
+        pd.concat(enhanced_price_list).reset_index(drop=True).to_sql('enhanced_price', engine,
+                                                                            if_exists='replace', index=False)
+    else:
+        results = new_regime_scanner(symbols, connection_string, *trend_args)
+
+
 if __name__ == '__main__':
     """
     rebuild scan data 
     run after updating scanner code to view results in notebook
     """
-    re_download_stock_data()
-    with open(r'..\data_args\scan_args.json', 'r') as args_fp:
-        _args = json.load(args_fp)
-    load_data = _args['load_data']
-
-    # data_manager.utils.main_re_download_data(load_data['other_path'], load_data['base_path'])
-
-    _scan_data = data_manager.utils.load_scan_data(**load_data)
-
-    data_manager.utils.main(
-        scan_args=_args,
-        strategy_simulator=src.floor_ceiling_regime.fc_scale_strategy,
-        expected_exceptions=(regime.NotEnoughDataError, src.floor_ceiling_regime.NoEntriesError),
-        # scan_data=data_manager.utils.load_scan_data(load_data['other_path'], load_data['base_path'],)
-        scan_data=_scan_data
-    )
+    # td_client = taa.TdBrokerClient.init_from_json('..\\data_args\\credentials.json')
+    # client = td_client.client.ensure_updated_refresh_token()
+    main(multiprocess=True)

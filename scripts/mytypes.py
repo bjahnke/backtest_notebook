@@ -1,6 +1,16 @@
 from typing import Optional, Mapping, Sequence, Union
 from pydantic import BaseModel
 
+
+class DownloadParams(BaseModel):
+    """
+    parameters for downloading stock data
+    """
+    stock_table_url: str = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    bench: str = 'SPY'
+    days: int = 365
+    interval_str: str = '1d'
+
 class ConnectionSettings(BaseModel):
     """
     A class representing the settings needed to establish a database connection.

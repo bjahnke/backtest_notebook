@@ -1,0 +1,79 @@
+@startuml
+allowmixing
+
+title Trading System Component Diagram
+
+interface APIGateway {
+  port "HTTP:80"
+  port "HTTPS:443"
+}
+
+node HistoricalPriceService {
+  component HistoricalPricesDatabase
+  component HistoricalPriceUpdater
+  port "PostgreSQL:5432"
+  note right of HistoricalPricesDatabase
+    Data stored in a SQL database.
+    SQL interface exposed for read/write access
+  end note
+}
+
+node TrendAnalysisService {
+  component TrendAnalysisDatabase
+  component TrendAnalyzer
+  port "PostgreSQL:5432"
+  note right of TrendAnalysisDatabase
+    Data stored in a SQL database.
+    SQL interface exposed for read/write access
+  end note
+}
+
+node MarketVisualizerService {
+  component VisualizationGenerator
+  port "HTTP:80"
+}
+
+node AccountDataService {
+  component AccountDataDatabase
+  component AccountDataUpdater
+  port "MongoDB:27017"
+  note right of AccountDataDatabase
+    Data stored in a NoSQL database.
+    API exposed for read/write access
+  end note
+}
+
+node OrderBookService {
+  component OrderGenerator
+  port "HTTP:80"
+}
+
+node OrderExecutorService {
+  component BrokerAPI
+  component StopLossHandler
+  port "HTTPS:443"
+}
+
+APIGateway --> HistoricalPriceService
+APIGateway --> TrendAnalysisService
+APIGateway --> MarketVisualizerService
+APIGateway --> AccountDataService
+APIGateway --> OrderBookService
+APIGateway --> OrderExecutorService
+
+HistoricalPriceUpdater --> HistoricalPricesDatabase
+TrendAnalyzer --> HistoricalPricesDatabase
+TrendAnalyzer --> TrendAnalysisDatabase
+VisualizationGenerator --> TrendAnalysisDatabase
+AccountDataUpdater --> AccountDataDatabase
+OrderGenerator --> AccountDataDatabase
+OrderGenerator --> TrendAnalysisDatabase
+OrderExecutorService --> BrokerAPI
+OrderExecutorService --> StopLossHandler
+
+note bottom of APIGateway
+  Routes requests based on URL and metadata.
+  Connection pool created using SQLAlchemy's create_engine method.
+end note
+
+@enduml
