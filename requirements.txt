@@ -9,9 +9,4 @@ scipy
 setuptools
 SQLAlchemy
 yfinance
-abstract_broker.egg==info
-cbpro_access.egg==info
-data_manager.egg==info
-pandas_accessors==0.0.0.6
-regime.egg==info
-tda_access.egg==info
+ib_insync
