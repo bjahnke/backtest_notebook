@@ -3,12 +3,14 @@ allowmixing
 
 title Trading System Component Diagram
 
-interface APIGateway {
-  port "HTTP:80"
-  port "HTTPS:443"
+package "API Gateway" {
+  interface APIGateway {
+    port "HTTP:80"
+    port "HTTPS:443"
+  }
 }
 
-node HistoricalPriceService {
+package "Historical Price Service" {
   component HistoricalPricesDatabase
   component HistoricalPriceUpdater
   port "PostgreSQL:5432"
@@ -18,7 +20,7 @@ node HistoricalPriceService {
   end note
 }
 
-node TrendAnalysisService {
+package "Trend Analysis Service" {
   component TrendAnalysisDatabase
   component TrendAnalyzer
   port "PostgreSQL:5432"
@@ -28,12 +30,12 @@ node TrendAnalysisService {
   end note
 }
 
-node MarketVisualizerService {
+package "Market Visualizer Service" {
   component VisualizationGenerator
   port "HTTP:80"
 }
 
-node AccountDataService {
+package "Account Data Service" {
   component AccountDataDatabase
   component AccountDataUpdater
   port "MongoDB:27017"
@@ -43,23 +45,24 @@ node AccountDataService {
   end note
 }
 
-node OrderBookService {
+package "Order Book Service" {
   component OrderGenerator
   port "HTTP:80"
 }
 
-node OrderExecutorService {
+package "Order Executor Service" {
   component BrokerAPI
   component StopLossHandler
   port "HTTPS:443"
 }
 
-APIGateway --> HistoricalPriceService
-APIGateway --> TrendAnalysisService
-APIGateway --> MarketVisualizerService
-APIGateway --> AccountDataService
-APIGateway --> OrderBookService
-APIGateway --> OrderExecutorService
+APIGateway --> HistoricalPricesDatabase
+APIGateway --> TrendAnalysisDatabase
+APIGateway --> VisualizationGenerator
+APIGateway --> AccountDataDatabase
+APIGateway --> OrderGenerator
+APIGateway --> BrokerAPI
+APIGateway --> StopLossHandler
 
 HistoricalPriceUpdater --> HistoricalPricesDatabase
 TrendAnalyzer --> HistoricalPricesDatabase
