@@ -10,3 +10,5 @@ setuptools
 SQLAlchemy
 yfinance
 ib_insync
+tzdata
+git+https://github.com/bjahnke/blue_bird_pms.git

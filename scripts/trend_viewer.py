@@ -1,5 +1,9 @@
 import pandas as pd
-
+from src.regime.utils import (
+    retest_from_latest_base_swing,
+    find_all_retest_swing,
+    add_peak_regime_data,
+)
 
 def get_stock_data(_symbol, _interval, _neon_db_url):
     q = (
@@ -15,7 +19,8 @@ def get_stock_data(_symbol, _interval, _neon_db_url):
         (q(table='stock_data', symbol=_symbol, interval=_interval, extra="order by stock_data.bar_number asc"), con=_neon_db_url)
     _regime_data = pd.read_sql(q(table='regime', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
     _peak_data = pd.read_sql(q(table='peak', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
-    return _stock_data, _regime_data, _peak_data
+    _fc_data = pd.read_sql(q(table='floor_ceiling', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
+    return _stock_data, _regime_data, _peak_data, _fc_data
 
 
 def get_data_by_market(_market_index, _interval, _neon_db_url, tables=None):
@@ -38,7 +43,7 @@ def get_data_by_market(_market_index, _interval, _neon_db_url, tables=None):
     return result
 
 
-def plot(_stock_data, title):
+def plot(_stock_data, title, entries=False):
     style_map = {
         'close': '-', # line
 
@@ -57,8 +62,24 @@ def plot(_stock_data, title):
         'fc': 'b--', # blue dashed line
         'sma': 'y--', # yellow dashed line
         'bo': 'k--', # black dashed line (white for dark mode)
-        'tt': 'c--' # cyan dashed line
+        'tt': 'c--', # cyan dashed line
+        # make fc_val green
+        'fc_val': 'y*',
+        # make rg_ch_val yellow start
+        'rg_ch_val': 'g--',
     }
+    if entries:
+        if _stock_data.fc.iloc[-1] == 1:
+            del style_map['hi2']
+            del style_map['dhi2']
+            del style_map['hi3']
+            del style_map['dhi3']
+        else:
+            del style_map['lo2']
+            del style_map['dlo2']
+            del style_map['lo3']
+            del style_map['dlo3']
+
     remove_keys = []
     for key, val in style_map.items():
         if key not in _stock_data.columns:
@@ -71,3 +92,47 @@ def plot(_stock_data, title):
             style_map.keys()].plot(style=list(style_map.values()), secondary_y=secondary_y, figsize=(15, 10), title=title)
     except KeyError:
         pass
+
+def setup_trend_view_graph(stock_data, regime_data, peak_data, fc_data):
+    peak_data.lvl = peak_data.lvl.astype(int)
+    stock_data.index = stock_data.bar_number
+    stock_data.index.name = 'index'
+    relative_stock_data = add_peak_regime_data(
+        stock_data.loc[stock_data.is_relative == True],
+        regime_data.loc[regime_data.is_relative == True],
+        peak_data.loc[peak_data.is_relative == True]
+    )
+    relative_stock_data = add_fc_data(relative_stock_data, fc_data.loc[fc_data.is_relative == True])
+    absolute_stock_data = add_peak_regime_data(
+        stock_data.loc[stock_data.is_relative == False],
+        regime_data.loc[regime_data.is_relative == False],
+        peak_data.loc[peak_data.is_relative == False]
+    )
+    absolute_stock_data = add_fc_data(absolute_stock_data, fc_data.loc[fc_data.is_relative == False])
+    return absolute_stock_data, relative_stock_data
+
+
+def setup_trend_view_graph_simple(stock_data, regime_data, peak_data, fc_data):
+    _stock_data = add_peak_regime_data(stock_data, regime_data, peak_data)
+    _stock_data = add_fc_data(_stock_data, fc_data)
+    return _stock_data
+
+
+def add_regime_data(_price_data, _regime_data):
+    for index, row in _regime_data.iterrows():
+        _price_data.loc[row.start:row.end, row.type] = row.rg
+    return _price_data
+
+
+def add_fc_data(_stock_data, _fc_data):
+    fc_val_table = _fc_data[['fc_val', 'fc_date']]
+    # drop duplicate fc_dates
+    fc_val_table = fc_val_table.drop_duplicates(subset=['fc_date'])
+    _stock_data = _stock_data.merge(
+        fc_val_table, how='left', left_on='bar_number', right_on='fc_date')
+
+    rg_change_table = _fc_data[['rg_ch_val', 'rg_ch_date']]
+    _stock_data = _stock_data.merge(
+        rg_change_table, how='left', left_on='bar_number', right_on='rg_ch_date')
+    _stock_data.rg_ch_val = _stock_data.rg_ch_val.ffill()
+    return _stock_data
