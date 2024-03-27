@@ -42,8 +42,12 @@ def get_data_by_market(_market_index, _interval, _neon_db_url, tables=None):
     result = [table_lookup[table]() for table in tables]
     return result
 
+import src.regime.utils
+def plot(_stock_data, title, entries=False, secondary_y=None):
+    if secondary_y is None:
+        secondary_y = ['fc', 'sma', 'bo', 'tt']
+    sd = _stock_data.copy()
 
-def plot(_stock_data, title, entries=False):
     style_map = {
         'close': '-', # line
 
@@ -66,10 +70,12 @@ def plot(_stock_data, title, entries=False):
         # make fc_val green
         'fc_val': 'y*',
         # make rg_ch_val yellow start
-        'rg_ch_val': 'g--',
+        'rg_ch_val': 'c--',
+        'trading_range_lo_band': 'r--',
+        'trading_range_hi_band': 'g--',
     }
     if entries:
-        if _stock_data.fc.iloc[-1] == 1:
+        if sd.fc.iloc[-1] == 1:
             del style_map['hi2']
             del style_map['dhi2']
             del style_map['hi3']
@@ -82,13 +88,13 @@ def plot(_stock_data, title, entries=False):
 
     remove_keys = []
     for key, val in style_map.items():
-        if key not in _stock_data.columns:
+        if key not in sd.columns:
             remove_keys.append(key)
     for key in remove_keys:
         style_map.pop(key)
-    secondary_y = ['fc', 'sma', 'bo', 'tt']
+
     try:
-        _stock_data[
+        sd[
             style_map.keys()].plot(style=list(style_map.values()), secondary_y=secondary_y, figsize=(15, 10), title=title)
     except KeyError:
         pass

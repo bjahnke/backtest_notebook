@@ -101,7 +101,6 @@ class TimestampData(Base):
     bar_number = Column(Integer, primary_key=True)
     interval = Column(String)
     timestamp = Column(DateTime)
-    data_source = Column(String)
 
 
 class Regime(Base):
