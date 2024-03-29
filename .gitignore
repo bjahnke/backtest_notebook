@@ -1,0 +1,9 @@
+geckodriver.log
+graph.dot
+positions.xlsx
+cbpro.json
+credentials.json
+.env
+.idea
+backtest_notebook.egg-info
+__pycache__
