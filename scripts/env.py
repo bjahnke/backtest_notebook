@@ -37,6 +37,7 @@ HOST = os.environ.get('HOST')
 PORT = os.environ.get('PORT')
 DATABASE = os.environ.get('DATABASE')
 HISTORICAL_PRICES_DB = 'historical_prices'
+NEON_DB = os.environ.get('NEON_DB_URL')
 
 class HistoricalPrices:
     stock_data='stock_data'

@@ -590,6 +590,7 @@ def swings(df, bm_df, bm_col, ccy_col, start, end, lvl, d_vol, dist_pct, vlty_n,
 
     return df
 
+
 def regime(df, lvl, vlty_n, threshold, rel=False):
     _o, _h, _l, _c = lower_upper_OHLC(df, relative=rel)
     rt_lo, rt_hi, slo, shi, rg, clg, flr, rg_ch = regime_args(df, lvl, relative=rel)
