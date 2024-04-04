@@ -542,13 +542,13 @@ def regime_floor_ceiling(df, _h, _l, _c, slo, shi, flr, clg, rg, rg_ch, stdev, t
             breakdown_rebound = df[brkdwn_low_ix: swing_max_ix][_c].cummax()  # rebound
             df.loc[brkdwn_low_ix: swing_max_ix, rg] = np.sign(breakdown_rebound - rg_ch_list[-1])
 
-    floor_ceiling_data = pd.DataFrame({
-        'rg_ch_ix': rg_ch_ix_list,
-        'rg_ch': rg_ch_list,
-        "ix": floor_ix_list + ceiling_ix_list,
-        "fc_px": floor_list + ceiling_list,
-        "type": [1] * len(floor_ix_list) + [-1] * len(ceiling_ix_list)
-    })
+    # floor_ceiling_data = pd.DataFrame({
+    #     'rg_ch_ix': rg_ch_ix_list,
+    #     'rg_ch': rg_ch_list,
+    #     "ix": floor_ix_list + ceiling_ix_list,
+    #     "fc_px": floor_list + ceiling_list,
+    #     "type": [1] * len(floor_ix_list) + [-1] * len(ceiling_ix_list)
+    # })
 
     ### POPULATE FLOOR,CEILING, RG CHANGE COLUMNS
     df.loc[floor_ix_list[1:], flr] = floor_list
@@ -564,7 +564,7 @@ def regime_floor_ceiling(df, _h, _l, _c, slo, shi, flr, clg, rg, rg_ch, stdev, t
                                                   np.sign(df[swing_max_ix:][_c].rolling(5).mean() - rg_ch_list[-1])))
     df[rg] = df[rg].fillna(method='ffill')
     #     df[rg+'_no_fill'] = df[rg]
-    return df, floor_ceiling_data
+    return df
 
 # for reference
 # params = ['2014-12-31', None, 63, 0.05, 0.05, 1.5, 2,5,2.5,3]
