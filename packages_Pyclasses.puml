@@ -1,0 +1,8 @@
+@startuml packages_Pyclasses
+set namespaceSeparator none
+package "notes.indicator" as notes.indicator {
+}
+package "notes.strategy" as notes.strategy {
+}
+notes.strategy --> notes.indicator
+@enduml

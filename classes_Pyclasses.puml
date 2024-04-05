@@ -1,0 +1,40 @@
+@startuml classes_Pyclasses
+set namespaceSeparator none
+class "Indicator" as notes.indicator.Indicator {
+  indicators
+  value
+  update(value)
+}
+class "IndicatorCollection" as notes.indicator.IndicatorCollection {
+  indicators
+  add(indicator)
+  update(value)
+}
+class "MoveAvg" as notes.indicator.MoveAvg {
+  window
+}
+class "MoveAvgCross" as notes.indicator.MoveAvgCross {
+  fast
+  slow
+}
+class "Strategy" as notes.strategy.Strategy {
+  log
+  price
+  get_entry_bars(prices)
+  is_ready() -> bool
+}
+class "VectorStrategy" as notes.strategy.VectorStrategy {
+}
+class "XOverStrat" as notes.strategy.XOverStrat {
+  xover
+}
+notes.indicator.MoveAvg --|> notes.indicator.Indicator
+notes.indicator.MoveAvgCross --|> notes.indicator.Indicator
+notes.strategy.Strategy --|> notes.indicator.Indicator
+notes.strategy.VectorStrategy --|> notes.strategy.Strategy
+notes.strategy.XOverStrat --|> notes.strategy.VectorStrategy
+notes.indicator.IndicatorCollection --* notes.indicator.Indicator : _indicators
+notes.indicator.MoveAvg --* notes.indicator.MoveAvgCross : _slow
+notes.indicator.MoveAvg --* notes.indicator.MoveAvgCross : _fast
+notes.indicator.MoveAvgCross --* notes.strategy.XOverStrat : _xover
+@enduml
