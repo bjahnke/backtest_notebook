@@ -11,6 +11,7 @@ import numpy as np
 from scipy.signal import find_peaks
 from sqlalchemy import create_engine
 import typing as t
+import scripts.env as env
 
 def scrap():
     """bm_df = pd.DataFrame()
@@ -795,8 +796,7 @@ def trend_analysis(
     # TODO Just pull data and visualize it
     last_row_list = []
     failed = []
-    engine = create_engine(
-        "postgresql://bjahnke71:8mwXTCZsA6tn@ep-spring-tooth-474112.us-east-2.aws.neon.tech/historical-stock-data")
+    engine = create_engine(env.NEON_DB_URL)
     for flat, ticker in enumerate(batch_list):
         try:
             regime_table = pd.read_sql(

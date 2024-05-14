@@ -4,12 +4,11 @@ Describe what this module does here:
     - scan for regimes
     - save results to db
 """
-import data_manager.utils
 import numpy as np
 import src.floor_ceiling_regime
-import regime
+import src.regime as regime
 import pandas as pd
-import scripts.env as env
+# import scripts.env as env
 from sqlalchemy import create_engine
 import multiprocessing as mp
 import typing as t
@@ -32,14 +31,6 @@ def regime_ranges(df, rg_col: str):
 
     boundaries[start_col][end_col] = boundaries[end_col][end_col]
     return boundaries[start_col][[start_col, end_col, rg_col]]
-
-
-def load_cbpro_data(other_path, base_path):
-    data_loader = data_manager.utils.DataLoader.init_from_paths(other_path, base_path)
-    price_data = pd.read_csv(data_loader.history_path(), index_col=0, header=[0, 1])
-    price_data = price_data.ffill()
-    ticks = list(price_data.columns.levels[0].unique())
-    return ticks, data_manager.utils.PriceGlob(price_data), None, None, data_loader
 
 
 def new_regime_scanner(symbols, conn_str, sma_kwargs, breakout_kwargs, turtle_kwargs):

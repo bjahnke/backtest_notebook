@@ -7,3 +7,5 @@ credentials.json
 .idea
 backtest_notebook.egg-info
 __pycache__
+.vscode
+venv
