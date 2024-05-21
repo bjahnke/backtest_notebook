@@ -1,6 +1,6 @@
 {
   "website": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
-  "start": "2014-12-31",
+  "start": "2021-12-31",
   "end": null,
   "vlty_n": 63,
   "dist_pct": 0.05,
@@ -10,7 +10,7 @@
   "d_vol": 5,
   "r_vol": 2.5,
   "lvl": 3,
-  "bm_ticker": "^GSPC",
+  "bm_ticker": "SPY",
   "bm_col": "SP500",
   "ccy_col": "USD",
   "window": 100,
