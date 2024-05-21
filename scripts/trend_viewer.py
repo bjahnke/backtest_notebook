@@ -43,7 +43,7 @@ def get_data_by_market(_market_index, _interval, _neon_db_url, tables=None):
     return result
 
 import src.regime.utils
-def plot(_stock_data, title, entries=False, secondary_y=None):
+def plot(_stock_data, title, entries=False, secondary_y=None, style_map=None):
     if secondary_y is None:
         secondary_y = ['fc', 'sma', 'bo', 'tt']
     sd = _stock_data.copy()
@@ -134,6 +134,7 @@ def add_fc_data(_stock_data, _fc_data):
     fc_val_table = _fc_data[['fc_val', 'fc_date']]
     # drop duplicate fc_dates
     fc_val_table = fc_val_table.drop_duplicates(subset=['fc_date'])
+    _stock_data = _stock_data.reset_index().rename(columns={'index': 'bar_number'})
     _stock_data = _stock_data.merge(
         fc_val_table, how='left', left_on='bar_number', right_on='fc_date')
 

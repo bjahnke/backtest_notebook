@@ -100,7 +100,10 @@ def robustness_score(grit, csr, sqn):
 class Stats:
     def __init__(self, strategy):
         self.strategy = strategy
-        self.price = strategy.price
+        strategy.apply_signals()
+        self.price = strategy.price.close 
+        self.trade_count = strategy.price.trade_count
+        self.signal = strategy.price.signal
 
     def sharpe(self, r_f=0.00001, window=None):
         if window is None:
@@ -147,7 +150,7 @@ class Stats:
         return expectancy(self.win_rate(window), self.avg_win(window), self.avg_loss(window))
 
     def t_stat(self, window=None):
-        return t_stat(self.signal_count(window), self.trading_edge(window))
+        return t_stat(self.signal_count(window), self.expectancy(window))
 
     def robustness_score(self, window=None):
         return robustness_score(self.grit(window), self.common_sense_ratio(window), self.t_stat(window))
@@ -174,20 +177,28 @@ class Stats:
     
     @property
     def returns(self):
+        # use log returns on purpose
         # arithmentic: self.price.pct_change()
-        return np.log(self.price / self.price.shift(1))
+        # TODO Shift signal to avoid look-ahead bias?
+        return np.log(self.price / self.price.shift(1)) * self.signal
     
     @property
     def log_returns(self):
-        return np.log(self.price / self.price.shift(1))
+        return np.log(self.price / self.price.shift(1)) * self.signal
     
-    @property
-    def cumulative_log_returns(self):
-        return self.log_returns.cumsum().apply(np.exp) - 1
+    def cumulative_log_returns(self, start=None):
+        returns = self.log_returns
+        if start is not None:
+            returns = returns.loc[start:]
+        
+        return returns.cumsum().apply(np.exp) - 1
     
-    @property
-    def signal_count(self):
-        return len(self.strategy.log)
+    def signal_count(self, window=None) -> pd.Series:
+        if window is None:
+            res = self.trade_count
+        else:
+            res = self.trade_count.diff(window)
+        return res
     
     def win_rate(self, window=None):
         if window is None:
