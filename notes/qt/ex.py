@@ -1,6 +1,8 @@
 import sys
 import os
-import dotenv
+
+from notes.qt.utils import *
+
 import pandas as pd
 import matplotlib.pyplot as plt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTableView, QPushButton, QLabel, QTabWidget
@@ -11,71 +13,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import QTabWidget, QWidget, QVBoxLayout
-
-dotenv.load_dotenv()
-
-
-class Market:
-    def market_analysis_macro(source_connection: str):
-        return Market.market_trend_analysis(*Market.load_tables(source_connection))
-
-    def load_tables(source_connection: str):
-        regime_table = pd.read_sql(f'SELECT * FROM regime', source_connection)
-        stock_table = pd.read_sql("SELECT id, symbol, is_relative FROM stock where stock.data_source = 'yahoo' and stock.market_index = 'SPY'", source_connection)
-        web_df = pd.read_sql("SELECT * FROM stock_info", source_connection)
-        return regime_table, stock_table, web_df
-
-
-    def market_trend_analysis(regime_table, stock_table, web_df):
-        regime_cols = ['fc', 'fc_r', 'bo', 'bo_r', 'sma', 'sma_r', 'tt', 'tt_r']
-        
-        regime_table = stock_table.merge(regime_table, left_on='id', right_on='stock_id', how='inner')
-        max_end_indices = regime_table.groupby(['symbol', 'type', 'is_relative'])['end'].idxmax()
-
-        filtered_df = regime_table.loc[max_end_indices, ['symbol', 'type', 'is_relative', 'end', 'rg']].reset_index(drop=True)
-        filtered_df['type'] = filtered_df['type'] + filtered_df['is_relative'].replace({True: '_r', False: ''})
-
-        regime_overview = filtered_df.pivot(index=['symbol'], columns='type', values='rg').reset_index()
-        regime_overview = regime_overview[['symbol'] + regime_cols]
-        regime_overview['delta'] = 0
-        regime_pairs = [('bo', 'bo_r'), ('fc', 'fc_r'), ('sma', 'sma_r'), ('tt', 'tt_r')]
-        for absolute, relative in regime_pairs:
-            regime_overview[absolute] = regime_overview[absolute].fillna(regime_overview[relative])
-            regime_overview[relative] = regime_overview[relative].fillna(regime_overview[absolute])
-            regime_overview[absolute] = regime_overview[absolute].fillna(0)
-            regime_overview[relative] = regime_overview[relative].fillna(0)
-            delta = (regime_overview[relative] - regime_overview[absolute]) / 2
-            regime_overview['delta'] += delta
-
-        regime_overview['delta'] /= len(regime_pairs)
-        regime_overview['score'] = regime_overview[regime_cols].sum(axis=1)
-        full_regime_overview = regime_overview.merge(web_df[['symbol', 'GICS Sector', 'GICS Sub-Industry']], left_on='symbol', right_on='symbol')
-        regime_overview = full_regime_overview.drop(columns=['symbol'])
-
-        groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sector']
-        sector_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(by='score')
-
-        groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sub-Industry']
-        sub_industry_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(
-            by= 'score')
-        
-        groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sector','GICS Sub-Industry']
-
-        sector_sub_sector_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(
-            by= ['GICS Sector','score'])
-        
-        full_regime_overview = full_regime_overview[['symbol', 'delta', 'score', 'GICS Sector', 'GICS Sub-Industry']]
-        
-        return (
-            ('Sector Overview', sector_overview), 
-            ('Sub Industry Overview', sub_industry_overview), 
-            ('Sub Sector/Sector Overview', sector_sub_sector_overview), 
-            ('Full Market Overview', full_regime_overview),
-        )
-
+from PyQt6.QtWidgets import QLineEdit, QPushButton, QLabel, QVBoxLayout, QWidget
 
 class SectorOverview(QWidget):
     pass
@@ -201,13 +139,6 @@ class MainWindow(QMainWindow):
 
         table_views = self.create_table_views(self.market_views)
 
-        # refresh_button = QPushButton("Refresh")
-        # refresh_button.clicked.connect(lambda: self.refresh_data(self.sector_overview, canvas))
-        # layout.addWidget(refresh_button)
-
-        # export_button = QPushButton("Export")
-        # export_button.clicked.connect(lambda: self.export_data(self.sector_overview))
-        # layout.addWidget(export_button)
         market_tab = MarketView(table_views)
         market_tab.setLayout(layout)
         return market_tab
@@ -225,11 +156,13 @@ class MainWindow(QMainWindow):
         return table_views
 
     def create_asset_view(self):
-        asset_tab = QWidget()
+        asset_tab = AssetView()
         layout = QVBoxLayout()
-
-        data_label = QLabel("Asset Data Table")
-        layout.addWidget(data_label)
+        
+        # TODO add submit button to fetch data by symbol and interval
+        stock, regime, peak, fc = get_stock_data(_symbol, _interval, os.environ.get('NEON_DB_CONSTR'))
+        _absolute_stock_data, _relative_stock_data = setup_trend_view_graph(stock, regime, peak, fc)
+        # TODO use plot function to plot _absolute_stock_data and _relative_stock_data to asset view gui
 
         plot_label = QLabel("Asset Data Plot")
         layout.addWidget(plot_label)
@@ -250,6 +183,136 @@ class MainWindow(QMainWindow):
     def export_data(self, data):
         # Placeholder for export logic
         print("Data exported")
+
+
+
+class AssetPlotWidget(QWidget):
+    def __init__(self, _stock_data, title, entries=False, secondary_y=None, style_map=None, parent=None):
+        super(AssetPlotWidget, self).__init__(parent)
+
+        # Create the canvas for the plot
+        self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
+
+        # Call your plot function
+        self.plot(_stock_data, title, entries, secondary_y, style_map)
+
+        # Create a vertical box layout and add the canvas to it
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+
+        # Set the layout to the QWidget
+        self.setLayout(layout)
+
+    def plot(self, _stock_data, title, entries=False, secondary_y=None, style_map=None):
+        if secondary_y is None:
+            secondary_y = ['fc', 'sma', 'bo', 'tt']
+        sd = _stock_data.copy()
+
+        style_map = {
+            'close': '-', # line
+
+            'lo3': 'g^', # green up arrow
+            'dlo3': 'k^', # black up arrow (white for dark mode)
+
+            'hi3': 'rv', # red down arrow
+            'dhi3': 'kv', # black down arrow (white for dark mode)
+
+            'lo2': 'g.', # green dot
+            'dlo2': 'k.', # black dot (white for dark mode)
+
+            'hi2': 'r.', # red dot
+            'dhi2': 'm.', # magenta dot
+
+            'fc': 'b--', # blue dashed line
+            'sma': 'y--', # yellow dashed line
+            'bo': 'k--', # black dashed line (white for dark mode)
+            'tt': 'c--', # cyan dashed line
+            # make fc_val green
+            'fc_val': 'y*',
+            # make rg_ch_val yellow start
+            'rg_ch_val': 'c--',
+            'trading_range_lo_band': 'r--',
+            'trading_range_hi_band': 'g--',
+        }
+
+        if entries:
+            if sd.fc.iloc[-1] == 1:
+                del style_map['hi2']
+                del style_map['dhi2']
+                del style_map['hi3']
+                del style_map['dhi3']
+            else:
+                del style_map['lo2']
+                del style_map['dlo2']
+                del style_map['lo3']
+                del style_map['dlo3']
+
+        remove_keys = []
+        for key, val in style_map.items():
+            if key not in sd.columns:
+                remove_keys.append(key)
+        for key in remove_keys:
+            style_map.pop(key)
+
+        try:
+            ax = self.canvas.axes
+            for key, style in style_map.items():
+                if key in secondary_y:
+                    ax2 = ax.twinx()
+                    ax2.plot(sd.index, sd[key], style, label=key)
+                    ax2.set_ylabel(key, color=style[0])
+                else:
+                    ax.plot(sd.index, sd[key], style, label=key)
+            ax.set_title(title)
+            ax.legend()
+            self.canvas.draw()
+        except KeyError:
+            pass
+
+
+class AssetView(QWidget):  # Replace with your actual class name
+    def __init__(self, parent=None):
+        super(QWidget, self).__init__(parent)
+        self.asset_tab = self.create_asset_view()
+        self.setCentralWidget(self.asset_tab)
+
+    def create_asset_view(self):
+        asset_tab = QWidget()
+        layout = QVBoxLayout()
+
+        # Input fields for symbol and interval
+        self.symbol_input = QLineEdit()
+        self.interval_input = QLineEdit()
+
+        # Submit button
+        submit_button = QPushButton('Submit')
+        submit_button.clicked.connect(self.fetch_and_plot_data)
+
+        layout.addWidget(QLabel("Symbol:"))
+        layout.addWidget(self.symbol_input)
+        layout.addWidget(QLabel("Interval:"))
+        layout.addWidget(self.interval_input)
+        layout.addWidget(submit_button)
+
+        # Labels for data and plot
+        data_label = QLabel("Asset Data Table")
+        layout.addWidget(data_label)
+        plot_label = QLabel("Asset Data Plot")
+        layout.addWidget(plot_label)
+
+        asset_tab.setLayout(layout)
+        return asset_tab
+
+    def fetch_and_plot_data(self):
+        _symbol = self.symbol_input.text()
+        _interval = self.interval_input.text()
+
+        stock, regime, peak, fc = get_stock_data(_symbol, _interval, os.environ.get('NEON_DB_CONSTR'))
+        _absolute_stock_data, _relative_stock_data = setup_trend_view_graph(stock, regime, peak, fc)
+
+        # Create the plot widget and add it to the layout
+        self.abs_plot_widget = AssetPlotWidget(_absolute_stock_data, "Absolute Data")  # Replace "Title" with your actual title
+        self.layout().addWidget(self.abs_plot_widget)
 
 
 if __name__ == '__main__':
