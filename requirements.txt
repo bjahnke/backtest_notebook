@@ -12,4 +12,7 @@ yfinance
 ib_insync
 tzdata
 psycopg2-binary
+jinja2
+pyqt6
+PyQt6-WebEngine
 git+https://github.com/bjahnke/blue_bird_pms.git

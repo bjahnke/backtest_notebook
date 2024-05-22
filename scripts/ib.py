@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 from ib_insync import *
 import src.floor_ceiling_regime as fcr
-import scripts.trend_viewer
+import notes.trend_viewer
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
 from pandas.api.extensions import register_dataframe_accessor
@@ -91,13 +91,13 @@ class FCIndicator:
             return
 
         plot_prices = self.tables.enhanced_price_data.copy()
-        plot_prices = scripts.trend_viewer.setup_trend_view_graph_simple(
+        plot_prices = notes.trend_viewer.setup_trend_view_graph_simple(
             plot_prices,
             self.tables.regime_table,
             self.tables.peak_table,
             self.tables.floor_ceiling_table
         )
-        scripts.trend_viewer.plot(plot_prices[-300:], title)
+        notes.trend_viewer.plot(plot_prices[-300:], title)
         plt.show()
         clear_output(wait=True)
 
