@@ -1,7 +1,7 @@
 import sys
 import os
 
-from notes.qt.utils import *
+from utils import *
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import QTabWidget, QWidget, QVBoxLayout
 from PyQt6.QtWidgets import QLineEdit, QPushButton, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFormLayout, QGroupBox
 
 class SectorOverview(QWidget):
     pass
@@ -156,19 +157,7 @@ class MainWindow(QMainWindow):
         return table_views
 
     def create_asset_view(self):
-        asset_tab = AssetView()
-        layout = QVBoxLayout()
-        
-        # TODO add submit button to fetch data by symbol and interval
-        stock, regime, peak, fc = get_stock_data(_symbol, _interval, os.environ.get('NEON_DB_CONSTR'))
-        _absolute_stock_data, _relative_stock_data = setup_trend_view_graph(stock, regime, peak, fc)
-        # TODO use plot function to plot _absolute_stock_data and _relative_stock_data to asset view gui
-
-        plot_label = QLabel("Asset Data Plot")
-        layout.addWidget(plot_label)
-
-        asset_tab.setLayout(layout)
-        return asset_tab
+        return AssetView()
 
     def plot_data(self, data, canvas):
         canvas.axes.cla()
@@ -274,7 +263,9 @@ class AssetView(QWidget):  # Replace with your actual class name
     def __init__(self, parent=None):
         super(QWidget, self).__init__(parent)
         self.asset_tab = self.create_asset_view()
-        self.setCentralWidget(self.asset_tab)
+        layout = QVBoxLayout()
+        layout.addWidget(self.asset_tab)
+        self.setLayout(layout)
 
     def create_asset_view(self):
         asset_tab = QWidget()
@@ -282,16 +273,25 @@ class AssetView(QWidget):  # Replace with your actual class name
 
         # Input fields for symbol and interval
         self.symbol_input = QLineEdit()
+        self.symbol_input.setMaximumWidth(200)  # Set maximum width
         self.interval_input = QLineEdit()
+        self.interval_input.setMaximumWidth(200)  # Set maximum width
 
         # Submit button
         submit_button = QPushButton('Submit')
         submit_button.clicked.connect(self.fetch_and_plot_data)
+        submit_button.setMaximumWidth(200)  # Set maximum width
 
-        layout.addWidget(QLabel("Symbol:"))
-        layout.addWidget(self.symbol_input)
-        layout.addWidget(QLabel("Interval:"))
-        layout.addWidget(self.interval_input)
+        # Form layout for input fields
+        form_layout = QFormLayout()
+        form_layout.addRow(QLabel("Symbol:"), self.symbol_input)
+        form_layout.addRow(QLabel("Interval:"), self.interval_input)
+
+        # Group box for form
+        form_group = QGroupBox("Enter Details")
+        form_group.setLayout(form_layout)
+
+        layout.addWidget(form_group)
         layout.addWidget(submit_button)
 
         # Labels for data and plot
@@ -311,8 +311,10 @@ class AssetView(QWidget):  # Replace with your actual class name
         _absolute_stock_data, _relative_stock_data = setup_trend_view_graph(stock, regime, peak, fc)
 
         # Create the plot widget and add it to the layout
-        self.abs_plot_widget = AssetPlotWidget(_absolute_stock_data, "Absolute Data")  # Replace "Title" with your actual title
+        self.abs_plot_widget = AssetPlotWidget(_absolute_stock_data, "Absolute Data")
+
         self.layout().addWidget(self.abs_plot_widget)
+        self.layout().addWidget(AssetPlotWidget(_relative_stock_data, "Relative Data"))
 
 
 if __name__ == '__main__':
