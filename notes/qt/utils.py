@@ -1,7 +1,9 @@
 import dotenv
 import src.regime.utils
-
+import matplotlib.pyplot as plt
 import pandas as pd
+from typing import Any, Dict, TypedDict
+from typing import Generic, TypeVar
 from src.regime.utils import (
     retest_from_latest_base_swing,
     find_all_retest_swing,
@@ -11,16 +13,18 @@ from src.regime.utils import (
 dotenv.load_dotenv()
 
 class Market:
+    @staticmethod
     def market_analysis_macro(source_connection: str):
         return Market.market_trend_analysis(*Market.load_tables(source_connection))
 
+    @staticmethod
     def load_tables(source_connection: str):
         regime_table = pd.read_sql(f'SELECT * FROM regime', source_connection)
         stock_table = pd.read_sql("SELECT id, symbol, is_relative FROM stock where stock.data_source = 'yahoo' and stock.market_index = 'SPY'", source_connection)
         web_df = pd.read_sql("SELECT * FROM stock_info", source_connection)
         return regime_table, stock_table, web_df
 
-
+    @staticmethod
     def market_trend_analysis(regime_table, stock_table, web_df):
         regime_cols = ['fc', 'fc_r', 'bo', 'bo_r', 'sma', 'sma_r', 'tt', 'tt_r']
         
@@ -34,13 +38,16 @@ class Market:
         regime_overview = regime_overview[['symbol'] + regime_cols]
         regime_overview['delta'] = 0
         regime_pairs = [('bo', 'bo_r'), ('fc', 'fc_r'), ('sma', 'sma_r'), ('tt', 'tt_r')]
+        
+        # if na, use the other value as default, else use 0 to avoid NaN calculations
         for absolute, relative in regime_pairs:
             regime_overview[absolute] = regime_overview[absolute].fillna(regime_overview[relative])
             regime_overview[relative] = regime_overview[relative].fillna(regime_overview[absolute])
             regime_overview[absolute] = regime_overview[absolute].fillna(0)
             regime_overview[relative] = regime_overview[relative].fillna(0)
-            delta = (regime_overview[relative] - regime_overview[absolute]) / 2
-            regime_overview['delta'] += delta
+            regime_overview['delta'] += (regime_overview[relative] - regime_overview[absolute])
+
+        regime_overview['delta'] /= 2
 
         regime_overview['delta'] /= len(regime_pairs)
         regime_overview['score'] = regime_overview[regime_cols].sum(axis=1)
@@ -70,42 +77,41 @@ class Market:
             ('Sub Sector/Sector Overview', sector_sub_sector_overview), 
             ('Full Market Overview', full_regime_overview),
         )
-    
 
-
-def get_stock_data(_symbol, _interval, _neon_db_url):
+def get_stock_data(symbol, interval, data_source, _neon_db_url):
     q = (
         "select {table}.*, stock.symbol, stock.is_relative "
         "from {table} "
         "left join stock on {table}.stock_id = stock.id "
-        "where stock.symbol = '{symbol}' "
-        "and stock.interval = '{interval}' "
+        f"where stock.symbol = '{symbol}' "
+        f"and stock.interval = '{interval}' "
+        f"and stock.data_source = '{data_source}'"
         "{extra}"
     ).format
 
-    _stock_data = pd.read_sql \
-        (q(table='stock_data', symbol=_symbol, interval=_interval, extra="order by stock_data.bar_number asc"), con=_neon_db_url)
-    _regime_data = pd.read_sql(q(table='regime', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
-    _peak_data = pd.read_sql(q(table='peak', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
-    _fc_data = pd.read_sql(q(table='floor_ceiling', symbol=_symbol, interval=_interval, extra=""), con=_neon_db_url)
+    _stock_data = pd.read_sql(q(table='stock_data', extra="order by stock_data.bar_number asc"), con=_neon_db_url)
+    _regime_data = pd.read_sql(q(table='regime', extra=""), con=_neon_db_url)
+    _peak_data = pd.read_sql(q(table='peak', extra=""), con=_neon_db_url)
+    _fc_data = pd.read_sql(q(table='floor_ceiling', extra=""), con=_neon_db_url)
     return _stock_data, _regime_data, _peak_data, _fc_data
 
 
-def get_data_by_market(_market_index, _interval, _neon_db_url, tables=None):
+def get_data_by_market(market_index, interval, _neon_db_url, tables=None):
     if tables is None:
         tables = ['stock_data', 'regime', 'peak']
-    q = (
-         "select {table}.*, stock.symbol, stock.is_relative "
-         "from {table} "
-         "left join stock on {table}.stock_id = stock.id "
-         "where stock.market_index = '{market}' "
-         "and stock.interval = '{interval}' "
-         "{extra}"
-    ).format
+    q = """--sql
+        select {table}.*, stock.symbol, stock.is_relative
+        from {table}
+        left join stock on {table}.stock_id = stock.id
+        where stock.market_index = '{market_index}'
+        and stock.interval = '{interval}'
+        {extra}
+    """.format(market=market_index, interval=interval, table='{table}', extra='{extra}').format
+
     table_lookup = {
-        'stock_data': lambda: pd.read_sql(q(table='stock_data', market=_market_index, interval=_interval, extra="order by stock_data.bar_number asc"), con=_neon_db_url),
-        'regime': lambda: pd.read_sql(q(table='regime', market=_market_index, interval=_interval, extra=""), con=_neon_db_url),
-        'peak': lambda: pd.read_sql(q(table='peak', market=_market_index, interval=_interval, extra=""), con=_neon_db_url)
+        'stock_data': lambda: pd.read_sql(q(table='stock_data', extra="order by stock_data.bar_number asc"), con=_neon_db_url),
+        'regime': lambda: pd.read_sql(q(table='regime', extra=""), con=_neon_db_url),
+        'peak': lambda: pd.read_sql(q(table='peak', extra=""), con=_neon_db_url)
     }
     result = [table_lookup[table]() for table in tables]
     return result
@@ -218,3 +224,37 @@ def add_fc_data(_stock_data, _fc_data):
         rg_change_table, how='left', left_on='bar_number', right_on='rg_ch_date')
     _stock_data.rg_ch_val = _stock_data.rg_ch_val.ffill()
     return _stock_data
+
+
+def plot_sector_on_bench(canvas, bench_df, rel, abs, selected: str):
+    """
+    Plot the sector data on the same plot as the benchmark data.
+    Integrate with display library of choice.
+    """
+    # Create a figure and axes
+    ax1 = canvas.axes
+
+    # Plot the 'spy' data on the primary axis
+    ax1.plot(bench_df.index, bench_df['close'], color='lightblue', label='SPY')
+
+    # Set the y-axis label for the primary axis
+    ax1.set_ylabel('SPY Price', color='lightblue')
+    ax1.tick_params(axis='y', colors='lightblue')
+
+    # Create a secondary axis
+    ax2 = ax1.twinx()
+
+    # Plot the 'rel_sector' and 'abs_sector' data on the secondary axis
+    ax2.plot(abs.index, abs[selected], color='darkred', linestyle='--', label='Absolute Sector')
+    ax2.plot(rel.index, rel[selected], color='darkgreen', linestyle='--', label='Relative Sector')
+
+    # Set the y-axis label for the secondary axis
+    ax2.set_ylabel('Sector Value', color='darkred')
+    ax2.tick_params(axis='y', colors='darkred')
+
+    # Set the title and legend
+    ax1.set_title(f'{selected}: Relative and Absolute Regime')
+    ax1.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
+    canvas.draw()

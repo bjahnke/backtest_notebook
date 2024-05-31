@@ -1,0 +1,2 @@
+entry_date	symbol	cost	stop	trail	trail_amount	target	quantity	direction	risk	multiple	fraction	is_relative	stock_id	signal_age	r_pct
+2024-05-24	PCAR	206.690087	197.302183	203.554213	3.057683	211.384039	53.260022	1	500	1	0.666667	True	895	10	0.04542

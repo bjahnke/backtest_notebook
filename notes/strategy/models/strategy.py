@@ -1,6 +1,6 @@
 from abc import ABC
-from notes.stats import Stats
-from notes.strategy.models.indicator import Indicator
+from .stats import Stats
+from .indicator import Indicator
 import pandas as pd
 
 # util
