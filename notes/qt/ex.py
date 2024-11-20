@@ -529,7 +529,7 @@ def main(load_from_pickle=False):
     app.exec()
 
 if __name__ == '__main__':
-    main(load_from_pickle=True)
+    main(load_from_pickle=False)
     """
     Main application:
         Tab Market View:
