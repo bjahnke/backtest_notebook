@@ -68,20 +68,27 @@ class MarketView(QWidget):
 
         self.setLayout(layout)
 
-    def filter_table_hof(self, index):
+    def filter_table_hof(self, tab_widget, index):
+        widget = tab_widget.widget(index)
+        model = None
+        for child in widget.children():
+            if isinstance(child, QTableView):
+                model = child.model().sourceModel()
+                break
+        if model is None:
+            raise ValueError("Model not found")
+
         def filter_table(query):
-            widget = self.tab_widget.widget(index)
-            for child in widget.children():
-                if isinstance(child, QTableView):
-                    model = child.model().sourceModel()
-                    if isinstance(model, PandasModel):
-                        try:
-                            filtered_data = model._original_data.query(query)
-                        except Exception as e:
-                            filtered_data = model._original_data
-                            
-                        model.update_data(filtered_data)
-                    break
+            if isinstance(model, PandasModel):
+                try:
+                    filtered_data = model._original_data.query(query)
+                except Exception as e:
+                    filtered_data = model._original_data
+
+                if isinstance(filtered_data, pd.Series):
+                    filtered_data = model._original_data
+                    
+                model.update_data(filtered_data)
         return filter_table
 
     @staticmethod
@@ -96,7 +103,7 @@ class MarketView(QWidget):
             
             filter_field = QLineEdit()
             filter_field.setPlaceholderText("Enter filter query")
-            filter_field.textChanged.connect(filter_function(i))
+            
             layout.addWidget(filter_field)
             
             table_view = QTableView()
@@ -109,6 +116,7 @@ class MarketView(QWidget):
             widget = QWidget()
             widget.setLayout(layout)
             tab_widget.addTab(widget, title)
+            filter_field.textChanged.connect(filter_function(tab_widget, i))
         return tab_widget
 
 # class MarketView(QWidget):

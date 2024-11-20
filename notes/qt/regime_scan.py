@@ -76,8 +76,8 @@ class MarketRegimeView:
     def group_regime_data(market_regime, stock_info):
         agg_market_regime = aggregate_regime(market_regime, how='sum')
         agg_market_regime = add_sector(agg_market_regime, stock_info)
-        sector = agg_market_regime.groupby(level='GICS Sector', axis=1).mean()
-        sub_industry = agg_market_regime.groupby(level='GICS Sub-Industry', axis=1).mean()
+        sector = agg_market_regime.groupby(level='sector', axis=1).mean()
+        sub_industry = agg_market_regime.groupby(level='sub_sector', axis=1).mean()
         return sector, sub_industry
     
 
@@ -94,6 +94,7 @@ class AbsRelRegimeView:
         
     @classmethod
     def build(cls, market_regime: pd.DataFrame, benchmark: pd.DataFrame, market_info: pd.DataFrame):
+        market_info = market_info.rename(columns={'GICS Sector': 'sector', 'GICS Sub-Industry': 'sub_sector'})
 
         abs = MarketRegimeView.build(
                 market_regime.loc[market_regime.is_relative == False], 
@@ -111,6 +112,7 @@ class AbsRelRegimeView:
 
     @staticmethod
     def build_regime_overview(regime_table, web_df):
+        
         regime_cols = ['fc', 'fc_r', 'bo', 'bo_r', 'sma', 'sma_r', 'tt', 'tt_r']
         
         max_end_indices = regime_table.groupby(['symbol', 'type', 'is_relative'])['end'].idxmax()
@@ -135,25 +137,30 @@ class AbsRelRegimeView:
 
         regime_overview['delta'] /= len(regime_pairs)
         regime_overview['score'] = regime_overview[regime_cols].sum(axis=1)
-        full_regime_overview = regime_overview.merge(web_df[['symbol', 'GICS Sector', 'GICS Sub-Industry']], left_on='symbol', right_on='symbol')
+        full_regime_overview = regime_overview.merge(web_df[['symbol', 'sector', 'sub_sector']], left_on='symbol', right_on='symbol')
+        
+        
         regime_overview = full_regime_overview.drop(columns=['symbol'])
 
+
+
+
         groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sector']
+        sort_key = ['sector']
         sector_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(by='score')
 
         groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sub-Industry']
+        sort_key = ['sub_sector']
         sub_industry_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(
             by= 'score')
         
         groupby_cols = ['score', 'delta'] + regime_cols
-        sort_key = ['GICS Sector','GICS Sub-Industry']
+        sort_key = ['sector','sub_sector']
 
         sector_sub_sector_overview = regime_overview.groupby(sort_key)[groupby_cols].mean().sort_values(
-            by= ['GICS Sector','score'])
+            by= ['sector','score'])
         
-        full_regime_overview = full_regime_overview[['symbol', 'delta', 'score', 'GICS Sector', 'GICS Sub-Industry']]
+        full_regime_overview = full_regime_overview[['symbol', 'delta', 'score', 'sector', 'sub_sector']]
         
         return (
             ('Sector Overview', sector_overview), 
@@ -206,11 +213,11 @@ def aggregate_regime_counts(benchmark, bench_regime, by_regime=None):
 
 
 def add_sector(aggregate_regime, sector_map_df):
-    sector_map_df = sector_map_df[['symbol', 'GICS Sector', 'GICS Sub-Industry']].copy()
+    sector_map_df = sector_map_df[['symbol', 'sector', 'sub_sector']].copy()
     sector_map_df = sector_map_df.set_index('symbol')
     multi_index = pd.MultiIndex.from_tuples(
-        [(col, sector_map_df.loc[col, 'GICS Sector'], sector_map_df.loc[col, 'GICS Sub-Industry']) for col in aggregate_regime.columns],
-        names=['symbol', 'GICS Sector', 'GICS Sub-Industry']
+        [(col, sector_map_df.loc[col, 'sector'], sector_map_df.loc[col, 'sub_sector']) for col in aggregate_regime.columns],
+        names=['symbol', 'sector', 'sub_sector']
     )
     aggregate_regime.columns = multi_index
     return aggregate_regime

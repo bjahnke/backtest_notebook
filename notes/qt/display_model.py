@@ -122,8 +122,8 @@ def create_tab_widget(tab_data: List[Tab]):
 
 
 
-def market_trend_analysis_app(title, tabs: List[Tab]):
-    app = QApplication(sys.argv)
+def market_trend_analysis_app(title, app, tabs: List[Tab]):
+    
     window = QMainWindow()
 
     window.setWindowTitle(title)
@@ -157,43 +157,40 @@ def create_market_display(tabs):
     return market_tab
 
 
-
-
-def create_asset_view():
-    qwidget = QWidget()
-
-
-
 def main():
-    
-    market_views = Market.market_analysis_macro(os.getenv('NEON_DB_CONSTR'))
+    db_str = os.getenv('NEON_DB_CONSTR')
+    market_views = Market.market_analysis_macro(db_str)
     market_tabs = []
+
+    app = QApplication(sys.argv)
     for (title, data) in market_views:
         market_tabs.append(Tab(title=title, model=PandasModel.create_table_view(data)))
+    
+    market_trend_analysis_app('Market Trend Analysis', app, market_tabs)
 
-    market_trend_analysis_app(
-        title='Market Trend Analysis',
-        children=[
-            Tab(
-                title='Market View', 
-                children=create_market_display(market_tabs)
-            ),
-            Tab(
-                title='Asset View', 
-                model=Model()
-            )
-        ]
-        tabs=[
-            Tab(
-                title='Market View', 
-                model=create_market_display(market_tabs)
-            ),
-            Tab(
-                title='Asset View', 
-                model=Model()
-            )
-        ]
-    )
+    # market_trend_analysis_app(
+    #     title='Market Trend Analysis',
+    #     children=[
+    #         Tab(
+    #             title='Market View', 
+    #             children=create_market_display(market_tabs)
+    #         ),
+    #         Tab(
+    #             title='Asset View', 
+    #             model=Model()
+    #         )
+    #     ],
+    #     tabs=[
+    #         Tab(
+    #             title='Market View', 
+    #             model=create_market_display(market_tabs)
+    #         ),
+    #         Tab(
+    #             title='Asset View', 
+    #             model=Model()
+    #         )
+    #     ]
+    # )
 
 
 
